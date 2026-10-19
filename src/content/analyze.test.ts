@@ -1021,3 +1021,57 @@ describe('a waived restriction is not the restriction (#397)', () => {
     }
   });
 });
+
+describe('a spaced dash separates list items like a semicolon (#409)', () => {
+  it('keeps a preference a preference when the next item after a dash says must/required', () => {
+    for (const text of [
+      'U.S. citizenship preferred – must have 5 years of Python.',
+      'U.S. citizenship preferred — must have 5 years of Python.',
+      'U.S. citizenship preferred - must have 5 years of Python.',
+      'Secret clearance preferred – Python required.',
+    ]) {
+      const a = analyze(text);
+      expect(a.verdict, text).toBe('caution');
+      expect(a.restrictions, text).toEqual([]);
+    }
+  });
+
+  it('does not split hyphenated words', () => {
+    expect(analyze('U.S. citizenship required for full-time roles.').verdict).toBe('no');
+    expect(analyze('U.S. citizenship preferred for this full-time role.').verdict).toBe('caution');
+  });
+
+  it('still says NO for a requirement followed by another item', () => {
+    for (const text of [
+      'U.S. citizenship required – no exceptions.',
+      'Active TS/SCI required – polygraph preferred.',
+    ]) {
+      expect(analyze(text).verdict, text).toBe('no');
+    }
+  });
+
+  it("doesn't attach a preference to the item before the separator", () => {
+    // The CAUTIONS scan the whole posting, so their windows stop at the
+    // separator too — semicolon included, which leaked before #409 as well.
+    for (const [text, label] of [
+      ['U.S. citizenship required – Python preferred.', 'U.S. citizenship preferred'],
+      ['U.S. citizenship required; Python preferred.', 'U.S. citizenship preferred'],
+      ['Security clearance required – AWS a plus.', 'Clearance preferred'],
+      // "but" bringing in a new subject ends the window too (#410 review).
+      ['U.S. citizenship not required but Python preferred.', 'U.S. citizenship preferred'],
+    ] as const) {
+      expect(analyze(text).cautions, text).not.toContain(label);
+    }
+  });
+
+  it('lets a preference cross "but" when what follows refers back to the same thing', () => {
+    for (const [text, label] of [
+      ['U.S. citizenship preferred but not required.', 'U.S. citizenship preferred'],
+      ['Preferred but not required: U.S. citizenship.', 'U.S. citizenship preferred'],
+      ["You don’t need a security clearance, but it’s a plus.", 'Clearance preferred'],
+      ['A clearance is not required, but that is preferred.', 'Clearance preferred'],
+    ] as const) {
+      expect(analyze(text).cautions, text).toContain(label);
+    }
+  });
+});
