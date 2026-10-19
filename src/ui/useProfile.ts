@@ -6,7 +6,8 @@ export type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 function profileSaveErrorMessage(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err);
   if (/quota/i.test(msg)) {
-    return 'Could not save — local storage is full. Remove an uploaded document to free space, then edit again.';
+    // Removing a document is itself an edit, so it re-saves on its own.
+    return 'Could not save — local storage is full. Remove an uploaded document to free space.';
   }
   return `Could not save — ${msg}`;
 }
@@ -17,6 +18,9 @@ function profileSaveErrorMessage(err: unknown): string {
  */
 export function useProfile() {
   const [profile, setProfile] = useState<Profile>(DEFAULT_PROFILE);
+  // What storage actually holds — the profile every AI feature reads. Differs
+  // from `profile` only while a save is pending or has failed (#361).
+  const [savedProfile, setSavedProfile] = useState<Profile>(DEFAULT_PROFILE);
   const [loaded, setLoaded] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [saveError, setSaveError] = useState('');
@@ -38,9 +42,12 @@ export function useProfile() {
   useEffect(() => {
     getProfile().then((p) => {
       setProfile(p);
+      setSavedProfile(p);
       setLoaded(true);
     });
     return onProfileChanged((p) => {
+      // Storage changed, whoever wrote it — that IS what the AI now reads.
+      setSavedProfile(p);
       if (!editing.current) setProfile(p);
     });
   }, []);
@@ -56,6 +63,7 @@ export function useProfile() {
       saveTimer.current = window.setTimeout(async () => {
         try {
           await saveProfile(next);
+          setSavedProfile(next);
           if (generation === saveGeneration.current) {
             setSaveState('saved');
             // Guarded too: without this, a slow-to-reset save A can flip
@@ -79,5 +87,15 @@ export function useProfile() {
     });
   }
 
-  return { profile, loaded, saveState, saveError, update, setProfile };
+  /**
+   * Re-saves the current profile after a failure. A failed save is never
+   * retried on its own, so without this the user had to invent an edit (#361).
+   * It is just an identity update: the same debounce, generation guard and
+   * error handling as any other save.
+   */
+  function retrySave(): void {
+    update((prev) => prev);
+  }
+
+  return { profile, savedProfile, loaded, saveState, saveError, update, retrySave, setProfile };
 }
