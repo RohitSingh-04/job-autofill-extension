@@ -232,10 +232,10 @@ function OptionsView({
         {saveState === 'saving' && <span className="help">Saving…</span>}
         {saveState === 'saved' && <span className="saved">✓ Saved</span>}
         {saveState === 'error' && saveError && (
-          <>
+          <div className="toolbar-error">
             <span className="warn">{saveError}</span>
             <button onClick={retrySave}>Retry save</button>
-          </>
+          </div>
         )}
       </div>
       <p className="sub">
