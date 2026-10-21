@@ -228,7 +228,7 @@ function OptionsView({
   return (
     <div className="options">
       <div className="toolbar">
-        <h1 style={{ flex: 1 }}>Little AI Helper — Settings</h1>
+        <h1>Little AI Helper — Settings</h1>
         {saveState === 'saving' && <span className="help">Saving…</span>}
         {saveState === 'saved' && <span className="saved">✓ Saved</span>}
         {saveState === 'error' && saveError && (
